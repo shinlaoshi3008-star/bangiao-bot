@@ -68,7 +68,7 @@ def append_task(task_name: str, members_str: str, creator_name: str = "Quý"):
     ])
 
 
-def append_handover(handover_id: str, item_name: str):
+def append_handover(handover_id: str, item_name: str) -> int:
     ws = get_handover_sheet()
     values = ws.get_all_values()
     stt = len(values)
@@ -79,9 +79,17 @@ def append_handover(handover_id: str, item_name: str):
         item_name,
     ] + ["Chưa xác nhận"] * 4
     ws.append_row(row)
+    return len(values) + 1  # số dòng thật trên sheet (tính cả header)
+
+
+def update_handover_confirm_by_row(row_index: int, person_name: str, confirm_text: str):
+    ws = get_handover_sheet()
+    col_idx = HANDOVER_HEADERS.index(person_name) + 1
+    ws.update_cell(row_index, col_idx, confirm_text)
 
 
 def update_handover_confirm(handover_id: str, person_name: str, confirm_text: str) -> bool:
+    """Dự phòng: dùng khi không có sẵn row_index (VD sau khi bot khởi động lại)."""
     ws = get_handover_sheet()
     values = ws.get_all_values()
     if not values:
