@@ -11,6 +11,7 @@ Biến môi trường cần thiết (xem .env.example):
 import os
 import logging
 import uuid
+import asyncio
 from datetime import datetime
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -38,6 +39,19 @@ MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
 ASSIGNER_IDS = {MEMBERS["Quý"], MEMBERS["Tân"]}
 ASSIGNER_NAMES = "đ/c Quý hoặc đ/c Tân"
 ID_TO_NAME = {v: k for k, v in MEMBERS.items()}
+
+
+def _run_in_background(func, *args):
+    """Chạy một lệnh Google Sheets (vốn đồng bộ, chậm) ở luồng riêng,
+    để không làm bot bị đứng/chậm phản hồi Telegram trong lúc chờ."""
+
+    async def _wrapper():
+        try:
+            await asyncio.to_thread(func, *args)
+        except Exception as e:
+            logger.error("Lỗi ghi Google Sheets (%s): %s", func.__name__, e)
+
+    asyncio.create_task(_wrapper())
 
 TASK_NAME, SELECT_MEMBERS = range(2)
 ITEM_NAME = 2
@@ -115,11 +129,6 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     members_str = ", ".join(sorted(selected, key=MEMBER_ORDER.index))
     creator_name = ID_TO_NAME.get(query.from_user.id, "Không rõ")
 
-    try:
-        sheets.append_task(task_name, members_str, creator_name)
-    except Exception as e:
-        logger.error("Lỗi ghi Google Sheets (task): %s", e)
-
     await query.edit_message_text(
         f"📋 NHIỆM VỤ MỚI\n"
         f"Tên: {task_name}\n"
@@ -127,6 +136,8 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Giao bởi: {creator_name}\n"
         f"Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
+
+    _run_in_background(sheets.append_task, task_name, members_str, creator_name)
     context.user_data.clear()
     return ConversationHandler.END
 
@@ -155,11 +166,6 @@ async def bangiao_gotname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     item_name = update.message.text.strip()
     handover_id = str(uuid.uuid4())[:8]
 
-    try:
-        sheets.append_handover(handover_id, item_name)
-    except Exception as e:
-        logger.error("Lỗi ghi Google Sheets (handover): %s", e)
-
     context.bot_data.setdefault("handover_state", {})[handover_id] = {}
 
     text = (
@@ -170,6 +176,15 @@ async def bangiao_gotname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(text, reply_markup=_build_handover_kb(handover_id, {}))
     context.user_data.clear()
+
+    async def _create_in_background():
+        try:
+            row_index = await asyncio.to_thread(sheets.append_handover, handover_id, item_name)
+            context.bot_data.setdefault("handover_rows", {})[handover_id] = row_index
+        except Exception as e:
+            logger.error("Lỗi ghi Google Sheets (handover): %s", e)
+
+    asyncio.create_task(_create_in_background())
     return ConversationHandler.END
 
 
@@ -187,11 +202,6 @@ async def handover_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now().strftime("%d/%m/%Y %H:%M")
     state[name] = now
 
-    try:
-        sheets.update_handover_confirm(handover_id, name, f"✅ {now}")
-    except Exception as e:
-        logger.error("Lỗi cập nhật Google Sheets (confirm): %s", e)
-
     all_done = all(m in state for m in MEMBER_ORDER)
     base_text = query.message.text.split("\n\nMỗi thành viên")[0]
 
@@ -202,6 +212,14 @@ async def handover_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             base_text + "\n\nMỗi thành viên bấm nút của mình để xác nhận đã nhận:",
             reply_markup=_build_handover_kb(handover_id, state),
         )
+
+    confirm_text = f"✅ {now}"
+    row_index = context.bot_data.get("handover_rows", {}).get(handover_id)
+    if row_index:
+        _run_in_background(sheets.update_handover_confirm_by_row, row_index, name, confirm_text)
+    else:
+        # Chưa có sẵn số dòng (VD bot vừa khởi động lại) -> dùng cách quét chậm hơn
+        _run_in_background(sheets.update_handover_confirm, handover_id, name, confirm_text)
 
 
 # ---------------------------------------------------------------------------
