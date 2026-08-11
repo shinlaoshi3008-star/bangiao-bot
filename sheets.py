@@ -14,7 +14,10 @@ from google.oauth2.service_account import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-TASK_HEADERS = ["STT", "Thời gian", "Tên nhiệm vụ", "Người thực hiện", "Người giao"]
+TASK_HEADERS = [
+    "STT", "Thời gian giao", "Tên nhiệm vụ", "Người thực hiện", "Người giao",
+    "Hạn hoàn thành", "Xác nhận nhận việc",
+]
 HANDOVER_HEADERS = ["STT", "ID", "Thời gian tạo", "Tên vật/nhiệm vụ", "Quý", "Tân", "Hương", "Thịnh"]
 
 MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
@@ -55,7 +58,7 @@ def get_handover_sheet():
     return _ensure_sheet(ss, "BanGiaoVatChat", HANDOVER_HEADERS)
 
 
-def append_task(task_name: str, members_str: str, creator_name: str = "Quý"):
+def append_task(task_name: str, members_str: str, creator_name: str, deadline_text: str) -> int:
     ws = get_task_sheet()
     values = ws.get_all_values()
     stt = len(values)  # trừ header
@@ -65,7 +68,16 @@ def append_task(task_name: str, members_str: str, creator_name: str = "Quý"):
         task_name,
         members_str,
         creator_name,
+        deadline_text,
+        "Chưa ai xác nhận",
     ])
+    return len(values) + 1  # số dòng thật trên sheet (tính cả header)
+
+
+def update_task_confirm_by_row(row_index: int, summary_text: str):
+    ws = get_task_sheet()
+    col_idx = TASK_HEADERS.index("Xác nhận nhận việc") + 1
+    ws.update_cell(row_index, col_idx, summary_text)
 
 
 def append_handover(handover_id: str, item_name: str) -> int:
