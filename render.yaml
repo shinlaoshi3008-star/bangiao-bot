@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ban-giao-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: QUY_ID
+        sync: false
+      - key: TAN_ID
+        sync: false
+      - key: HUONG_ID
+        sync: false
+      - key: THINH_ID
+        sync: false
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: SPREADSHEET_ID
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
