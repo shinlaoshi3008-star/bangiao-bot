@@ -55,7 +55,7 @@ def get_handover_sheet():
     return _ensure_sheet(ss, "BanGiaoVatChat", HANDOVER_HEADERS)
 
 
-def append_task(task_name: str, members_str: str):
+def append_task(task_name: str, members_str: str, creator_name: str = "Quý"):
     ws = get_task_sheet()
     values = ws.get_all_values()
     stt = len(values)  # trừ header
@@ -64,7 +64,7 @@ def append_task(task_name: str, members_str: str):
         datetime.now().strftime("%d/%m/%Y %H:%M"),
         task_name,
         members_str,
-        "Quý",
+        creator_name,
     ])
 
 
