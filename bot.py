@@ -34,6 +34,11 @@ MEMBERS = {
 }
 MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
 
+# Những người được phép tạo mục "Giao nhiệm vụ" và "Bàn giao vật chất"
+ASSIGNER_IDS = {MEMBERS["Quý"], MEMBERS["Tân"]}
+ASSIGNER_NAMES = "đ/c Quý hoặc đ/c Tân"
+ID_TO_NAME = {v: k for k, v in MEMBERS.items()}
+
 TASK_NAME, SELECT_MEMBERS = range(2)
 ITEM_NAME = 2
 
@@ -48,10 +53,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         resize_keyboard=True,
     )
     await update.message.reply_text(
-        "Xin chào! Bot theo dõi giao việc & bàn giao của nhóm.\n"
-        "• 📋 Giao nhiệm vụ — chỉ đ/c Quý dùng được\n"
-        "• 📦 Bàn giao vật chất — chỉ đ/c Quý tạo, cả 4 người xác nhận\n\n"
-        "Chọn chức năng bên dưới:",
+        f"Xin chào! Bot theo dõi giao việc & bàn giao của nhóm.\n"
+        f"• 📋 Giao nhiệm vụ — chỉ {ASSIGNER_NAMES} dùng được\n"
+        f"• 📦 Bàn giao vật chất — chỉ {ASSIGNER_NAMES} tạo, cả 4 người xác nhận\n\n"
+        f"Chọn chức năng bên dưới:",
         reply_markup=kb,
     )
 
@@ -70,8 +75,8 @@ def _build_member_kb(selected: set) -> InlineKeyboardMarkup:
 
 
 async def giaonhiemvu_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != QUY_ID:
-        await update.message.reply_text("Chỉ đ/c Quý mới có quyền giao nhiệm vụ.")
+    if update.effective_user.id not in ASSIGNER_IDS:
+        await update.message.reply_text(f"Chỉ {ASSIGNER_NAMES} mới có quyền giao nhiệm vụ.")
         return ConversationHandler.END
     await update.message.reply_text("Nhập tên nhiệm vụ:")
     return TASK_NAME
@@ -108,9 +113,10 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     task_name = context.user_data["task_name"]
     members_str = ", ".join(sorted(selected, key=MEMBER_ORDER.index))
+    creator_name = ID_TO_NAME.get(query.from_user.id, "Không rõ")
 
     try:
-        sheets.append_task(task_name, members_str)
+        sheets.append_task(task_name, members_str, creator_name)
     except Exception as e:
         logger.error("Lỗi ghi Google Sheets (task): %s", e)
 
@@ -118,7 +124,7 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📋 NHIỆM VỤ MỚI\n"
         f"Tên: {task_name}\n"
         f"Người thực hiện: {members_str}\n"
-        f"Giao bởi: Quý\n"
+        f"Giao bởi: {creator_name}\n"
         f"Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
     )
     context.user_data.clear()
@@ -138,8 +144,8 @@ def _build_handover_kb(handover_id: str, confirmed: dict) -> InlineKeyboardMarku
 
 
 async def bangiao_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != QUY_ID:
-        await update.message.reply_text("Chỉ đ/c Quý mới có quyền tạo mục bàn giao.")
+    if update.effective_user.id not in ASSIGNER_IDS:
+        await update.message.reply_text(f"Chỉ {ASSIGNER_NAMES} mới có quyền tạo mục bàn giao.")
         return ConversationHandler.END
     await update.message.reply_text("Nhập tên vật/nhiệm vụ cần bàn giao:")
     return ITEM_NAME
