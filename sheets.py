@@ -8,11 +8,13 @@ Yêu cầu biến môi trường:
 import os
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import gspread
 from google.oauth2.service_account import Credentials
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 TASK_HEADERS = [
     "STT", "Thời gian giao", "Tên nhiệm vụ", "Người thực hiện", "Người giao",
@@ -64,7 +66,7 @@ def append_task(task_name: str, members_str: str, creator_name: str, deadline_te
     stt = len(values)  # trừ header
     ws.append_row([
         stt,
-        datetime.now().strftime("%d/%m/%Y %H:%M"),
+        datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M"),
         task_name,
         members_str,
         creator_name,
@@ -87,7 +89,7 @@ def append_handover(handover_id: str, item_name: str) -> int:
     row = [
         stt,
         handover_id,
-        datetime.now().strftime("%d/%m/%Y %H:%M"),
+        datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M"),
         item_name,
     ] + ["Chưa xác nhận"] * 4
     ws.append_row(row)
