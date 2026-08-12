@@ -434,7 +434,14 @@ def main():
         daily_report_reminder_job,
         time=dt_time(hour=8, minute=45, tzinfo=VN_TZ),
         days=(0, 1, 2, 3, 4),  # 0=Thứ 2 ... 4=Thứ 6 (bỏ Thứ 7, Chủ nhật)
-        name="daily_report_reminder",
+        name="daily_report_reminder_sang",
+    )
+
+    app.job_queue.run_daily(
+        daily_report_reminder_job,
+        time=dt_time(hour=15, minute=0, tzinfo=VN_TZ),
+        days=(0, 1, 2, 3, 4),
+        name="daily_report_reminder_chieu",
     )
 
     port = int(os.environ.get("PORT", 8080))
