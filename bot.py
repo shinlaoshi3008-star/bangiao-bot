@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 QUY_ID = int(os.environ["QUY_ID"])
+GROUP_CHAT_ID = int(os.environ["GROUP_CHAT_ID"])
 MEMBERS = {
     "Quý": QUY_ID,
     "Tân": int(os.environ["TAN_ID"]),
@@ -373,6 +374,19 @@ async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
             logger.error("Lỗi gửi nhắc hạn cho nhiệm vụ %s: %s", task_id, e)
 
 
+async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    report_members = ["Tân", "Hương", "Thịnh"]
+    mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in report_members)
+    try:
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} vui lòng nộp báo cáo hàng ngày.",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("Lỗi gửi nhắc nộp báo cáo: %s", e)
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -414,6 +428,13 @@ def main():
         deadline_reminder_job,
         time=dt_time(hour=9, minute=0, tzinfo=VN_TZ),
         name="deadline_reminder",
+    )
+
+    app.job_queue.run_daily(
+        daily_report_reminder_job,
+        time=dt_time(hour=8, minute=45, tzinfo=VN_TZ),
+        days=(0, 1, 2, 3, 4),  # 0=Thứ 2 ... 4=Thứ 6 (bỏ Thứ 7, Chủ nhật)
+        name="daily_report_reminder",
     )
 
     port = int(os.environ.get("PORT", 8080))
