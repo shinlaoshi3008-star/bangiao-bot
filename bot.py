@@ -20,6 +20,7 @@ from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ConversationHandler, ContextTypes, filters,
 )
+from aiohttp import web
 
 import sheets
 
@@ -380,11 +381,49 @@ async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} Nộp báo cáo đi các con vợ!!!.",
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} Nộp báo cáo ngày các con vợ ơi!!!.",
             parse_mode="HTML",
         )
     except Exception as e:
         logger.error("Lỗi gửi nhắc nộp báo cáo: %s", e)
+
+
+async def _health_check(request):
+    return web.Response(text="OK")
+
+
+async def _telegram_webhook(request):
+    application: Application = request.app["ptb_app"]
+    data = await request.json()
+    update = Update.de_json(data, application.bot)
+    await application.update_queue.put(update)
+    return web.Response(text="OK")
+
+
+async def _run_webhook_with_healthcheck(application: Application, webhook_url: str, port: int):
+    """Tự dựng máy chủ webhook (thay vì dùng app.run_webhook() có sẵn) để thêm
+    được đường dẫn '/' trả lời OK cho UptimeRobot/Render ping, tránh bị báo
+    404 "Down" trong khi bot vẫn đang hoạt động bình thường với Telegram."""
+    await application.initialize()
+    await application.start()
+    await application.bot.set_webhook(url=f"{webhook_url}/{BOT_TOKEN}")
+
+    aio_app = web.Application()
+    aio_app["ptb_app"] = application
+    aio_app.router.add_get("/", _health_check)
+    aio_app.router.add_post(f"/{BOT_TOKEN}", _telegram_webhook)
+
+    runner = web.AppRunner(aio_app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info("Webhook + health-check đang chạy trên port %s", port)
+
+    try:
+        await asyncio.Event().wait()  # giữ chương trình sống mãi
+    finally:
+        await application.stop()
+        await application.shutdown()
 
 
 def main():
@@ -448,13 +487,8 @@ def main():
     webhook_url = os.environ.get("WEBHOOK_URL")
 
     if webhook_url:
-        logger.info("Chạy ở chế độ webhook trên port %s", port)
-        app.run_webhook(
-            listen="0.0.0.0",
-            port=port,
-            url_path=BOT_TOKEN,
-            webhook_url=f"{webhook_url}/{BOT_TOKEN}",
-        )
+        logger.info("Chạy ở chế độ webhook (có health-check) trên port %s", port)
+        asyncio.run(_run_webhook_with_healthcheck(app, webhook_url, port))
     else:
         logger.info("Chạy ở chế độ polling (dùng để test local)")
         app.run_polling()
