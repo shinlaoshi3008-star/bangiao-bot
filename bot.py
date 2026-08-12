@@ -380,7 +380,7 @@ async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} vui lòng nộp báo cáo hàng ngày.",
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} Nộp báo cáo đi các con vợ!!!.",
             parse_mode="HTML",
         )
     except Exception as e:
