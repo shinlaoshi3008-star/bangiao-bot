@@ -12,7 +12,8 @@ import os
 import logging
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, time as dt_time, timedelta
+from zoneinfo import ZoneInfo
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -34,6 +35,7 @@ MEMBERS = {
     "Thịnh": int(os.environ["THINH_ID"]),
 }
 MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
+VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 # Những người được phép tạo mục "Giao nhiệm vụ" và "Bàn giao vật chất"
 ASSIGNER_IDS = {MEMBERS["Quý"], MEMBERS["Tân"]}
@@ -129,7 +131,8 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     members_str = ", ".join(sorted(selected, key=MEMBER_ORDER.index))
     await query.edit_message_text(f"Người thực hiện: {members_str}")
     await query.message.reply_text(
-        "Nhập hạn hoàn thành (VD: 20/08/2026), hoặc gõ 'không' nếu không có hạn:"
+        "Nhập hạn hoàn thành theo định dạng dd/mm/yyyy (VD: 20/08/2026), "
+        "hoặc gõ 'không' nếu không có hạn:"
     )
     return TASK_DEADLINE
 
@@ -152,9 +155,20 @@ def _render_task_message(info: dict, confirmed: dict) -> str:
 
 
 async def giaonhiemvu_gotdeadline(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    deadline_text = update.message.text.strip()
-    if deadline_text.lower() in ("không", "khong", "k"):
+    raw = update.message.text.strip()
+    if raw.lower() in ("không", "khong", "k"):
         deadline_text = "Không có hạn"
+        deadline_date = None
+    else:
+        try:
+            deadline_date = datetime.strptime(raw, "%d/%m/%Y").date()
+            deadline_text = raw
+        except ValueError:
+            await update.message.reply_text(
+                "Định dạng chưa đúng. Nhập theo dd/mm/yyyy (VD: 20/08/2026), "
+                "hoặc gõ 'không' nếu không có hạn:"
+            )
+            return TASK_DEADLINE
 
     task_name = context.user_data["task_name"]
     selected = context.user_data.get("selected", set())
@@ -172,9 +186,18 @@ async def giaonhiemvu_gotdeadline(update: Update, context: ContextTypes.DEFAULT_
         f"Người thực hiện: {members_str}\n"
         f"Giao bởi: {creator_name}\n"
         f"Hạn hoàn thành: {deadline_text}\n"
-        f"Thời gian giao: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        f"Thời gian giao: {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}"
     )
-    info = {"assigned": assigned, "header_text": header_text, "mentions_html": mentions_html}
+    info = {
+        "assigned": assigned,
+        "header_text": header_text,
+        "mentions_html": mentions_html,
+        "task_name": task_name,
+        "deadline_text": deadline_text,
+        "deadline_date": deadline_date,
+        "chat_id": update.effective_chat.id,
+        "reminded": False,
+    }
     context.bot_data.setdefault("task_info", {})[task_id] = info
     context.bot_data.setdefault("task_state", {})[task_id] = {}
 
@@ -213,7 +236,7 @@ async def task_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer("Đã xác nhận nhận việc!")
 
     state = context.bot_data.setdefault("task_state", {}).setdefault(task_id, {})
-    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    now = datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M")
     state[name] = now
 
     all_done = all(n in state for n in info["assigned"])
@@ -260,7 +283,7 @@ async def bangiao_gotname(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"📦 BÀN GIAO VẬT CHẤT\n"
         f"Tên: {item_name}\n"
-        f"Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"Thời gian: {datetime.now(VN_TZ).strftime('%d/%m/%Y %H:%M')}\n\n"
         f"Mỗi thành viên bấm nút của mình để xác nhận đã nhận:"
     )
     await update.message.reply_text(text, reply_markup=_build_handover_kb(handover_id, {}))
@@ -288,7 +311,7 @@ async def handover_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer("Đã xác nhận!")
 
     state = context.bot_data.setdefault("handover_state", {}).setdefault(handover_id, {})
-    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    now = datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M")
     state[name] = now
 
     all_done = all(m in state for m in MEMBER_ORDER)
@@ -317,6 +340,37 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Đã huỷ thao tác.")
     return ConversationHandler.END
+
+
+async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    task_info = context.bot_data.get("task_info", {})
+    task_state = context.bot_data.get("task_state", {})
+    tomorrow = (datetime.now(VN_TZ) + timedelta(days=1)).date()
+
+    for task_id, info in task_info.items():
+        if info.get("deadline_date") != tomorrow or info.get("reminded"):
+            continue
+
+        state = task_state.get(task_id, {})
+        pending = [n for n in info["assigned"] if n not in state]
+        if not pending:
+            continue
+
+        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in pending)
+        try:
+            await context.bot.send_message(
+                chat_id=info["chat_id"],
+                text=(
+                    f"⏰ NHẮC HẠN\n"
+                    f"Nhiệm vụ: {info['task_name']}\n"
+                    f"Còn 1 ngày nữa là tới hạn ({info['deadline_text']}).\n"
+                    f"{mentions} vui lòng xác nhận đã nhận và hoàn thành nhiệm vụ."
+                ),
+                parse_mode="HTML",
+            )
+            info["reminded"] = True
+        except Exception as e:
+            logger.error("Lỗi gửi nhắc hạn cho nhiệm vụ %s: %s", task_id, e)
 
 
 def main():
@@ -355,6 +409,12 @@ def main():
     app.add_handler(handover_conv)
     app.add_handler(CallbackQueryHandler(handover_confirm, pattern=r"^hc\|"))
     app.add_handler(CallbackQueryHandler(task_confirm, pattern=r"^tc\|"))
+
+    app.job_queue.run_daily(
+        deadline_reminder_job,
+        time=dt_time(hour=9, minute=0, tzinfo=VN_TZ),
+        name="deadline_reminder",
+    )
 
     port = int(os.environ.get("PORT", 8080))
     webhook_url = os.environ.get("WEBHOOK_URL")
