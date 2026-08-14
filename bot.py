@@ -14,6 +14,7 @@ import uuid
 import asyncio
 from datetime import datetime, time as dt_time, timedelta
 from zoneinfo import ZoneInfo
+import pytz
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import (
@@ -38,6 +39,9 @@ MEMBERS = {
 }
 MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+# Dùng riêng pytz cho lịch chạy job (run_daily) - tương thích chắc chắn hơn
+# với bộ lập lịch nền (APScheduler) so với zoneinfo ở một số phiên bản.
+JOB_TZ = pytz.timezone("Asia/Ho_Chi_Minh")
 
 # Những người được phép tạo mục "Giao nhiệm vụ" và "Bàn giao vật chất"
 ASSIGNER_IDS = {MEMBERS["Quý"], MEMBERS["Tân"]}
@@ -345,6 +349,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Job deadline_reminder_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
     task_info = context.bot_data.get("task_info", {})
     task_state = context.bot_data.get("task_state", {})
     tomorrow = (datetime.now(VN_TZ) + timedelta(days=1)).date()
@@ -376,12 +381,13 @@ async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Job daily_report_reminder_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
     report_members = ["Tân", "Hương", "Thịnh"]
     mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in report_members)
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} Nộp báo cáo ngày các con vợ ơi!!!.",
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} vui lòng nộp báo cáo hàng ngày.",
             parse_mode="HTML",
         )
     except Exception as e:
@@ -465,21 +471,19 @@ def main():
 
     app.job_queue.run_daily(
         deadline_reminder_job,
-        time=dt_time(hour=9, minute=0, tzinfo=VN_TZ),
+        time=dt_time(hour=9, minute=0, tzinfo=JOB_TZ),
         name="deadline_reminder",
     )
 
     app.job_queue.run_daily(
         daily_report_reminder_job,
-        time=dt_time(hour=8, minute=45, tzinfo=VN_TZ),
-        days=(0, 1, 2, 3, 4),  # 0=Thứ 2 ... 4=Thứ 6 (bỏ Thứ 7, Chủ nhật)
+        time=dt_time(hour=8, minute=45, tzinfo=JOB_TZ),
         name="daily_report_reminder_sang",
     )
 
     app.job_queue.run_daily(
         daily_report_reminder_job,
-        time=dt_time(hour=15, minute=0, tzinfo=VN_TZ),
-        days=(0, 1, 2, 3, 4),
+        time=dt_time(hour=15, minute=0, tzinfo=JOB_TZ),
         name="daily_report_reminder_chieu",
     )
 
