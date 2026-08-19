@@ -432,6 +432,65 @@ async def _run_webhook_with_healthcheck(application: Application, webhook_url: s
         await application.shutdown()
 
 
+def _parse_number(text: str) -> int:
+    text = (text or "").strip().replace(",", "")
+    if text in ("", "-"):
+        return 0
+    try:
+        return int(float(text))
+    except ValueError:
+        return 0
+
+
+def _trend_word(delta: int):
+    if delta > 0:
+        return "tăng", delta
+    if delta < 0:
+        return "giảm", abs(delta)
+    return None, 0
+
+
+async def weekly_compare_job(context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Job weekly_compare_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
+
+    today = datetime.now(VN_TZ).date()
+    start_date = today - timedelta(days=7)
+    start_str = start_date.strftime("%d/%m/%Y")
+    end_str = today.strftime("%d/%m/%Y")
+
+    try:
+        row = await asyncio.to_thread(sheets.get_weekly_compare_row, start_str)
+    except Exception as e:
+        logger.error("Lỗi đọc sheet so sánh tuần: %s", e)
+        return
+
+    if not row:
+        logger.warning("Không tìm thấy dòng tuần bắt đầu %s trong sheet TỔNG HỢP TUẦN", start_str)
+        return
+
+    may_bay = _parse_number(row[2] if len(row) > 2 else "")
+    tau = _parse_number(row[3] if len(row) > 3 else "")
+    may_bay_delta = _parse_number(row[4] if len(row) > 4 else "")
+    tau_delta = _parse_number(row[6] if len(row) > 6 else "")
+
+    tau_word, tau_val = _trend_word(tau_delta)
+    mb_word, mb_val = _trend_word(may_bay_delta)
+
+    tau_phrase = f"{tau_word} {tau_val} lượt/chiếc tàu" if tau_word else "tàu không đổi"
+    mb_phrase = f"{mb_word} {mb_val} lượt/chiếc máy bay" if mb_word else "máy bay không đổi"
+
+    text = (
+        f"Từ {start_str} đến {end_str}, có {tau} lượt/chiếc tàu hải quân và {may_bay} lượt/chiếc "
+        f"máy bay quân sự hoạt động tại vùng biển quanh đảo Đài Loan "
+        f"({tau_phrase}, {mb_phrase} so với tuần trước)."
+    )
+
+    try:
+        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text)
+    except Exception as e:
+        logger.error("Lỗi gửi tin so sánh tuần: %s", e)
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -485,6 +544,13 @@ def main():
         daily_report_reminder_job,
         time=dt_time(hour=15, minute=0, tzinfo=JOB_TZ),
         name="daily_report_reminder_chieu",
+    )
+
+    app.job_queue.run_daily(
+        weekly_compare_job,
+        time=dt_time(hour=10, minute=30, tzinfo=JOB_TZ),
+        days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
+        name="weekly_compare",
     )
 
     port = int(os.environ.get("PORT", 8080))
