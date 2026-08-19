@@ -546,11 +546,11 @@ def main():
         name="daily_report_reminder_chieu",
     )
 
-    app.job_queue.run_daily(
-        weekly_compare_job,
-        time=dt_time(hour=10, minute=30, tzinfo=JOB_TZ),
-        time=dt_time(hour=10, minute=95, tzinfo=JOB_TZ),
-        name="weekly_compare",
+app.job_queue.run_daily(
+    weekly_compare_job,
+    time=dt_time(hour=10, minute=55, tzinfo=JOB_TZ),
+    name="weekly_compare",
+)
     )
 
     port = int(os.environ.get("PORT", 8080))
