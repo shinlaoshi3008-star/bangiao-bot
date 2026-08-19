@@ -82,6 +82,23 @@ def update_task_confirm_by_row(row_index: int, summary_text: str):
     ws.update_cell(row_index, col_idx, summary_text)
 
 
+WEEKLY_COMPARE_TAB = "TỔNG HỢP TUẦN"
+
+
+def get_weekly_compare_row(target_start_date_str: str):
+    """Đọc tab 'TỔNG HỢP TUẦN' của sheet so sánh tàu/máy bay (sheet khác với
+    sheet Bàn Giao Nhóm), tìm dòng có cột 'Thời gian' bắt đầu đúng ngày cần tìm.
+    Trả về list giá trị của dòng đó, hoặc None nếu không thấy."""
+    client = _get_client()
+    ss = client.open_by_key(os.environ["WEEKLY_COMPARE_SHEET_ID"])
+    ws = ss.worksheet(WEEKLY_COMPARE_TAB)
+    values = ws.get_all_values()
+    for row in values[1:]:
+        if len(row) > 1 and row[1].strip().startswith(target_start_date_str):
+            return row
+    return None
+
+
 def append_handover(handover_id: str, item_name: str) -> int:
     ws = get_handover_sheet()
     values = ws.get_all_values()
