@@ -454,9 +454,11 @@ async def weekly_compare_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Job weekly_compare_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
 
     today = datetime.now(VN_TZ).date()
-    start_date = today - timedelta(days=7)
+    this_monday = today - timedelta(days=today.weekday())   # Thứ 2 của tuần chứa hôm nay
+    start_date = this_monday - timedelta(days=7)             # Thứ 2 của tuần TRƯỚC (đã hoàn thành)
+    end_date = start_date + timedelta(days=6)                 # Chủ nhật của tuần đó
     start_str = start_date.strftime("%d/%m/%Y")
-    end_str = today.strftime("%d/%m/%Y")
+    end_str = end_date.strftime("%d/%m/%Y")
 
     try:
         row = await asyncio.to_thread(sheets.get_weekly_compare_row, start_str)
@@ -550,7 +552,8 @@ def main():
 
     app.job_queue.run_daily(
         weekly_compare_job,
-        time=dt_time(hour=11, minute=10, tzinfo=JOB_TZ),
+        time=dt_time(hour=10, minute=30, tzinfo=JOB_TZ),
+        days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
         name="weekly_compare",
     )
 
