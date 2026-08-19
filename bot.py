@@ -550,7 +550,7 @@ def main():
 
     app.job_queue.run_daily(
         weekly_compare_job,
-        time=dt_time(hour=11, minute=08, tzinfo=JOB_TZ),
+        time=dt_time(hour=11, minute=10, tzinfo=JOB_TZ),
         name="weekly_compare",
     )
 
