@@ -547,12 +547,13 @@ def main():
     app.job_queue.run_daily(
         daily_report_reminder_job,
         time=dt_time(hour=15, minute=0, tzinfo=JOB_TZ),
+        days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
         name="daily_report_reminder_chieu",
     )
 
     app.job_queue.run_daily(
         weekly_compare_job,
-        time=dt_time(hour=11, minute=45, tzinfo=JOB_TZ),
+        time=dt_time(hour=10, minute=45, tzinfo=JOB_TZ),
         name="weekly_compare",
     )
 
