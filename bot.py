@@ -479,14 +479,16 @@ async def weekly_compare_job(context: ContextTypes.DEFAULT_TYPE):
     tau_phrase = f"{tau_word} {tau_val} lượt/chiếc tàu" if tau_word else "tàu không đổi"
     mb_phrase = f"{mb_word} {mb_val} lượt/chiếc máy bay" if mb_word else "máy bay không đổi"
 
+    huong_mention = f'<a href="tg://user?id={MEMBERS["Hương"]}">Hương</a>'
     text = (
         f"Từ {start_str} đến {end_str}, có {tau} lượt/chiếc tàu hải quân và {may_bay} lượt/chiếc "
         f"máy bay quân sự hoạt động tại vùng biển quanh đảo Đài Loan "
-        f"({tau_phrase}, {mb_phrase} so với tuần trước)."
+        f"({tau_phrase}, {mb_phrase} so với tuần trước).\n\n"
+        f"{huong_mention}"
     )
 
     try:
-        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text)
+        await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text, parse_mode="HTML")
     except Exception as e:
         logger.error("Lỗi gửi tin so sánh tuần: %s", e)
 
@@ -548,9 +550,8 @@ def main():
 
     app.job_queue.run_daily(
         weekly_compare_job,
-        time=dt_time(hour=11, minute=5, tzinfo=JOB_TZ),
+        time=dt_time(hour=11, minute=08, tzinfo=JOB_TZ),
         name="weekly_compare",
-    )
     )
 
     port = int(os.environ.get("PORT", 8080))
