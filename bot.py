@@ -137,8 +137,8 @@ async def finish_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     members_str = ", ".join(sorted(selected, key=MEMBER_ORDER.index))
     await query.edit_message_text(f"Người thực hiện: {members_str}")
     await query.message.reply_text(
-        "Nhập hạn hoàn thành theo định dạng dd/mm/yyyy (VD: 20/08/2026), "
-        "hoặc gõ 'không' nếu không có hạn:"
+        "Nhập hạn hoàn thành theo giờ và ngày, định dạng HH:MM dd/mm/yyyy "
+        "(VD: 17:00 20/08/2026), hoặc gõ 'không' nếu không có hạn:"
     )
     return TASK_DEADLINE
 
@@ -165,13 +165,15 @@ async def giaonhiemvu_gotdeadline(update: Update, context: ContextTypes.DEFAULT_
     if raw.lower() in ("không", "khong", "k"):
         deadline_text = "Không có hạn"
         deadline_date = None
+        deadline_dt = None
     else:
         try:
-            deadline_date = datetime.strptime(raw, "%d/%m/%Y").date()
+            deadline_dt = datetime.strptime(raw, "%H:%M %d/%m/%Y").replace(tzinfo=VN_TZ)
+            deadline_date = deadline_dt.date()
             deadline_text = raw
         except ValueError:
             await update.message.reply_text(
-                "Định dạng chưa đúng. Nhập theo dd/mm/yyyy (VD: 20/08/2026), "
+                "Định dạng chưa đúng. Nhập theo HH:MM dd/mm/yyyy (VD: 17:00 20/08/2026), "
                 "hoặc gõ 'không' nếu không có hạn:"
             )
             return TASK_DEADLINE
@@ -201,8 +203,10 @@ async def giaonhiemvu_gotdeadline(update: Update, context: ContextTypes.DEFAULT_
         "task_name": task_name,
         "deadline_text": deadline_text,
         "deadline_date": deadline_date,
+        "deadline_datetime": deadline_dt,
         "chat_id": update.effective_chat.id,
         "reminded": False,
+        "reminded_2h": False,
     }
     context.bot_data.setdefault("task_info", {})[task_id] = info
     context.bot_data.setdefault("task_state", {})[task_id] = {}
@@ -346,6 +350,43 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Đã huỷ thao tác.")
     return ConversationHandler.END
+
+
+async def deadline_2h_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    now = datetime.now(VN_TZ)
+    task_info = context.bot_data.get("task_info", {})
+    task_state = context.bot_data.get("task_state", {})
+
+    for task_id, info in task_info.items():
+        deadline_dt = info.get("deadline_datetime")
+        if not deadline_dt or info.get("reminded_2h"):
+            continue
+
+        remind_at = deadline_dt - timedelta(hours=2)
+        if not (remind_at <= now < deadline_dt):
+            continue
+
+        info["reminded_2h"] = True  # đánh dấu ngay để không kiểm tra lại nhiều lần
+
+        state = task_state.get(task_id, {})
+        pending = [n for n in info["assigned"] if n not in state]
+        if not pending:
+            continue
+
+        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in pending)
+        try:
+            await context.bot.send_message(
+                chat_id=info["chat_id"],
+                text=(
+                    f"⏰ CÒN 2 TIẾNG NỮA TỚI HẠN\n"
+                    f"Nhiệm vụ: {info['task_name']}\n"
+                    f"Hạn hoàn thành: {info['deadline_text']}\n"
+                    f"{mentions} vui lòng xác nhận đã nhận và hoàn thành nhiệm vụ."
+                ),
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error("Lỗi gửi nhắc 2 tiếng trước hạn cho nhiệm vụ %s: %s", task_id, e)
 
 
 async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
@@ -538,6 +579,13 @@ def main():
         name="deadline_reminder",
     )
 
+    app.job_queue.run_repeating(
+        deadline_2h_reminder_job,
+        interval=300,  # kiểm tra mỗi 5 phút
+        first=15,
+        name="deadline_2h_reminder",
+    )
+
     app.job_queue.run_daily(
         daily_report_reminder_job,
         time=dt_time(hour=8, minute=45, tzinfo=JOB_TZ),
@@ -547,13 +595,13 @@ def main():
     app.job_queue.run_daily(
         daily_report_reminder_job,
         time=dt_time(hour=15, minute=0, tzinfo=JOB_TZ),
-        days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
         name="daily_report_reminder_chieu",
     )
 
     app.job_queue.run_daily(
         weekly_compare_job,
         time=dt_time(hour=10, minute=45, tzinfo=JOB_TZ),
+        days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
         name="weekly_compare",
     )
 
