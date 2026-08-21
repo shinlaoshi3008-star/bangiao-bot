@@ -355,7 +355,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def deadline_2h_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(VN_TZ)
     task_info = context.bot_data.get("task_info", {})
-    task_state = context.bot_data.get("task_state", {})
 
     for task_id, info in task_info.items():
         deadline_dt = info.get("deadline_datetime")
@@ -368,12 +367,7 @@ async def deadline_2h_reminder_job(context: ContextTypes.DEFAULT_TYPE):
 
         info["reminded_2h"] = True  # đánh dấu ngay để không kiểm tra lại nhiều lần
 
-        state = task_state.get(task_id, {})
-        pending = [n for n in info["assigned"] if n not in state]
-        if not pending:
-            continue
-
-        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in pending)
+        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in info["assigned"])
         try:
             await context.bot.send_message(
                 chat_id=info["chat_id"],
@@ -381,7 +375,7 @@ async def deadline_2h_reminder_job(context: ContextTypes.DEFAULT_TYPE):
                     f"⏰ CÒN 2 TIẾNG NỮA TỚI HẠN\n"
                     f"Nhiệm vụ: {info['task_name']}\n"
                     f"Hạn hoàn thành: {info['deadline_text']}\n"
-                    f"{mentions} vui lòng xác nhận đã nhận và hoàn thành nhiệm vụ."
+                    f"{mentions} vui lòng hoàn thành nhiệm vụ đúng hạn."
                 ),
                 parse_mode="HTML",
             )
@@ -392,19 +386,13 @@ async def deadline_2h_reminder_job(context: ContextTypes.DEFAULT_TYPE):
 async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Job deadline_reminder_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
     task_info = context.bot_data.get("task_info", {})
-    task_state = context.bot_data.get("task_state", {})
     tomorrow = (datetime.now(VN_TZ) + timedelta(days=1)).date()
 
     for task_id, info in task_info.items():
         if info.get("deadline_date") != tomorrow or info.get("reminded"):
             continue
 
-        state = task_state.get(task_id, {})
-        pending = [n for n in info["assigned"] if n not in state]
-        if not pending:
-            continue
-
-        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in pending)
+        mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in info["assigned"])
         try:
             await context.bot.send_message(
                 chat_id=info["chat_id"],
@@ -412,7 +400,7 @@ async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
                     f"⏰ NHẮC HẠN\n"
                     f"Nhiệm vụ: {info['task_name']}\n"
                     f"Còn 1 ngày nữa là tới hạn ({info['deadline_text']}).\n"
-                    f"{mentions} vui lòng xác nhận đã nhận và hoàn thành nhiệm vụ."
+                    f"{mentions} vui lòng hoàn thành nhiệm vụ đúng hạn."
                 ),
                 parse_mode="HTML",
             )
@@ -428,7 +416,7 @@ async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} vui lòng nộp báo cáo hàng ngày.",
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} nộp báo cáo ngày đi các con vợ!!!🏃‍♂️⏰",
             parse_mode="HTML",
         )
     except Exception as e:
