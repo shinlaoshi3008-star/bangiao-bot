@@ -1,9 +1,9 @@
 """
 Bot Telegram: Giao nhiệm vụ & Bàn giao vật chất cho nhóm 4 người
-(Quý - người giao cố định, Tân, Hương, Thịnh).
+(Quý - người giao cố định, Tân, Hương).
 
 Biến môi trường cần thiết (xem .env.example):
-  BOT_TOKEN, QUY_ID, TAN_ID, HUONG_ID, THINH_ID,
+  BOT_TOKEN, QUY_ID, TAN_ID, HUONG_ID,
   GOOGLE_CREDENTIALS_JSON, SPREADSHEET_ID,
   WEBHOOK_URL (khi deploy), PORT (Render tự cấp)
 """
@@ -35,9 +35,8 @@ MEMBERS = {
     "Quý": QUY_ID,
     "Tân": int(os.environ["TAN_ID"]),
     "Hương": int(os.environ["HUONG_ID"]),
-    "Thịnh": int(os.environ["THINH_ID"]),
 }
-MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
+MEMBER_ORDER = ["Quý", "Tân", "Hương"]
 VN_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 # Dùng riêng pytz cho lịch chạy job (run_daily) - tương thích chắc chắn hơn
 # với bộ lập lịch nền (APScheduler) so với zoneinfo ở một số phiên bản.
@@ -411,7 +410,7 @@ async def deadline_reminder_job(context: ContextTypes.DEFAULT_TYPE):
 
 async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     logger.info("Job daily_report_reminder_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
-    report_members = ["Tân", "Hương", "Thịnh"]
+    report_members = ["Tân", "Hương"]
     mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in report_members)
     try:
         await context.bot.send_message(
