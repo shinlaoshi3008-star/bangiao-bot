@@ -1,5 +1,5 @@
 """
-Bot Telegram: Giao nhiệm vụ & Bàn giao vật chất cho nhóm 4 người
+Bot Telegram: Giao nhiệm vụ & Bàn giao vật chất cho nhóm
 (Quý - người giao cố định, Tân, Hương).
 
 Biến môi trường cần thiết (xem .env.example):
@@ -415,7 +415,7 @@ async def daily_report_reminder_job(context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=GROUP_CHAT_ID,
-            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} nộp báo cáo ngày đi các con vợ!!!🏃‍♂️⏰",
+            text=f"🔔 NHẮC NỘP BÁO CÁO\n{mentions} vui lòng nộp báo cáo hàng ngày.",
             parse_mode="HTML",
         )
     except Exception as e:
@@ -523,6 +523,19 @@ async def weekly_compare_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error("Lỗi gửi tin so sánh tuần: %s", e)
 
 
+async def bc_bqp_reminder_job(context: ContextTypes.DEFAULT_TYPE):
+    logger.info("Job bc_bqp_reminder_job chạy lúc %s", datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M:%S"))
+    mentions = " ".join(f'<a href="tg://user?id={MEMBERS[n]}">{n}</a>' for n in MEMBER_ORDER)
+    try:
+        await context.bot.send_message(
+            chat_id=GROUP_CHAT_ID,
+            text=f"🔔 BC lãnh đạo BQP\n{mentions}",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("Lỗi gửi nhắc BC lãnh đạo BQP: %s", e)
+
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -590,6 +603,20 @@ def main():
         time=dt_time(hour=10, minute=45, tzinfo=JOB_TZ),
         days=(1,),  # 1 = Thứ 2 (thư viện dùng 0=CN...6=Thứ 7)
         name="weekly_compare",
+    )
+
+    app.job_queue.run_daily(
+        bc_bqp_reminder_job,
+        time=dt_time(hour=11, minute=0, tzinfo=JOB_TZ),
+        days=(5,),  # 5 = Thứ 6
+        name="bc_bqp_thu6",
+    )
+
+    app.job_queue.run_daily(
+        bc_bqp_reminder_job,
+        time=dt_time(hour=15, minute=0, tzinfo=JOB_TZ),
+        days=(0,),  # 0 = Chủ nhật
+        name="bc_bqp_cn",
     )
 
     port = int(os.environ.get("PORT", 8080))
