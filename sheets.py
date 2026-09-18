@@ -20,9 +20,9 @@ TASK_HEADERS = [
     "STT", "Thời gian giao", "Tên nhiệm vụ", "Người thực hiện", "Người giao",
     "Hạn hoàn thành", "Xác nhận nhận việc",
 ]
-HANDOVER_HEADERS = ["STT", "ID", "Thời gian tạo", "Tên vật/nhiệm vụ", "Quý", "Tân", "Hương", "Thịnh"]
+HANDOVER_HEADERS = ["STT", "ID", "Thời gian tạo", "Tên vật/nhiệm vụ", "Quý", "Tân", "Hương"]
 
-MEMBER_ORDER = ["Quý", "Tân", "Hương", "Thịnh"]
+MEMBER_ORDER = ["Quý", "Tân", "Hương"]
 
 
 def _get_client():
@@ -108,7 +108,7 @@ def append_handover(handover_id: str, item_name: str) -> int:
         handover_id,
         datetime.now(VN_TZ).strftime("%d/%m/%Y %H:%M"),
         item_name,
-    ] + ["Chưa xác nhận"] * 4
+    ] + ["Chưa xác nhận"] * 3
     ws.append_row(row)
     return len(values) + 1  # số dòng thật trên sheet (tính cả header)
 
