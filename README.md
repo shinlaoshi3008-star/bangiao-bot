@@ -1,6 +1,6 @@
 # Bot Bàn Giao Nhóm (Telegram + Google Sheets)
 
-Bot cho nhóm 4 người: **Quý** (người giao cố định), **Tân**, **Hương**, **Thịnh**.
+Bot cho nhóm: **Quý** (người giao cố định), **Tân**, **Hương**.
 
 - **📋 Giao nhiệm vụ** — chỉ Quý dùng được. Nhập tên nhiệm vụ, chọn 1-4 người thực hiện. Ghi vào sheet `GiaoNhiemVu`.
 - **📦 Bàn giao vật chất** — chỉ Quý tạo. Cả 4 người bấm nút riêng của mình để xác nhận đã nhận. Ghi vào sheet `BanGiaoVatChat`, mỗi người 1 cột, ai bấm nút của người đó thì mới tính (bot kiểm tra đúng Telegram ID).
@@ -19,7 +19,7 @@ Làm theo đúng thứ tự các bước dưới đây — tổng cộng khoản
 
 ## Bước 2 — Lấy User ID của 4 thành viên
 
-Mỗi người (Quý, Tân, Hương, Thịnh) tự làm việc này:
+Mỗi người (Quý, Tân, Hương) tự làm việc này:
 1. Mở Telegram, tìm **@userinfobot**, bấm Start.
 2. Bot trả về `Id: 123456789` — gửi số này cho Quý để điền vào cấu hình.
 
@@ -56,7 +56,7 @@ Mỗi người (Quý, Tân, Hương, Thịnh) tự làm việc này:
    - **Plan:** Free
 4. Ở mục **Environment Variables**, thêm từng biến (lấy giá trị từ các bước trên):
    - `BOT_TOKEN`
-   - `QUY_ID`, `TAN_ID`, `HUONG_ID`, `THINH_ID`
+   - `QUY_ID`, `TAN_ID`, `HUONG_ID`
    - `GOOGLE_CREDENTIALS_JSON` (dán nguyên nội dung file JSON)
    - `SPREADSHEET_ID`
    - `WEBHOOK_URL` — điền tạm `https://ten-app-cua-ban.onrender.com` (Render cho biết tên chính xác sau khi tạo xong, quay lại sửa nếu khác)
